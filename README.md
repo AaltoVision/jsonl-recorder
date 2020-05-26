@@ -5,7 +5,9 @@ Usage
  * `#include <jsonl-recorder/recorder.hpp>`
  * link with `-ljsonl-recorder`.
 
-Dependencies: https://github.com/nlohmann/json (included as a submodule)
+Dependencies (included as submodules)
+ * https://github.com/nlohmann/json
+ * optional for tests: https://github.com/catchorg/Catch2.git
 
 ## Installation
 
@@ -28,3 +30,8 @@ cmake --build . --config Release --target install
 `CMAKE_INSTALL_PREFIX` is optional but recommended, unless you like
 to `sudo make install` everything and enjoy debugging random issues caused
 by this approach later.
+
+### Tests
+
+After `cmake ...`, run `cmake --build . --target jsonl-recorder-tests` and `ctest`
+(or just `make && ctest`)

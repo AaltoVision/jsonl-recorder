@@ -13,8 +13,17 @@ add_library(${LIBNAME} recorder.cpp)
 set_target_properties(${LIBNAME} PROPERTIES PUBLIC_HEADER "recorder.hpp;types.hpp")
 set(JSON_BuildTests OFF CACHE INTERNAL "")
 add_subdirectory(json ${CMAKE_CURRENT_BINARY_DIR}/nlohmann_json)
-target_link_libraries(${LIBNAME} PRIVATE nlohmann_json::nlohmann_json)
+target_link_libraries(${LIBNAME} PUBLIC nlohmann_json::nlohmann_json)
 
 install(TARGETS ${LIBNAME}
   ARCHIVE DESTINATION lib
   PUBLIC_HEADER DESTINATION include/${LIBNAME})
+
+enable_testing()
+if (BUILD_TESTING)
+  set(TEST_NAME ${LIBNAME}-tests)
+  add_executable(${TEST_NAME} test.cpp)
+  target_link_libraries(${TEST_NAME} ${LIBNAME})
+  target_include_directories(${TEST_NAME} PRIVATE Catch2/single_include)
+  add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
+endif()
