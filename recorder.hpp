@@ -22,15 +22,23 @@ public:
     static std::unique_ptr<Recorder> build(const std::string& outputPath);
     /**
      * New recorder that saves both a JSONL recording and AVI video recordings for frame
-     * bitmap data (if present). To work, this requires the recorder to be compiled with optional
+     * bitmap data (if present). To work, this requires the recorder to be compiled with
      * OpenCV support.
      *
      * @param outputPath JSONL output path
-     * @param videoRecordingPrefix Each camera will have its own video file, which will be named
-     *      prefix + index + ".avi" where the index part is left out for camera index 0. E.g.,
-     *      /prefix/path.avi, /prefix/path2.avi, /prefix/path3.avi.
+     * @param videoOutputPath The path in which video output is stored for the
+     *  first camera. In the stereo/multiple-camera case, each camera will have
+     *  its own video file, and their names are derived from this path.
+     *  Example
+     *      - videoOutputPath: "/path/to/example.avi"
+     *      - first camera (cameraInd = 0) file: "/path/to/example.avi"
+     *      - 2nd camera (cameraInd = 1) file: "/path/to/example2.avi"
+     *      - 3rd camera (cameraInd = 2) file: "/path/to/example3.avi"
+     *      - ...
+     *  Note that the file name must end in ".avi" due to OpenCV restrictions
+     *  (supprting other formats & codecs require nastier dependencies).
      */
-    static std::unique_ptr<Recorder> build(const std::string& outputPath, const std::string &videoRecordingPrefix);
+    static std::unique_ptr<Recorder> build(const std::string& outputPath, const std::string &videoOutputPath);
 
     /**
      * @ param output Stream to which output will be written.

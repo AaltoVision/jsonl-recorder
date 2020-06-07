@@ -262,8 +262,14 @@ std::unique_ptr<Recorder> Recorder::build(const std::string& outputPath) {
     return std::unique_ptr<Recorder>(new RecorderImplementation(outputPath));
 }
 
-std::unique_ptr<Recorder> Recorder::build(const std::string& outputPath, const std::string &videoRecordingPrefix) {
-    return std::unique_ptr<Recorder>(new RecorderImplementation(outputPath, videoRecordingPrefix));
+std::unique_ptr<Recorder> Recorder::build(const std::string& outputPath, const std::string &videoOutputPath) {
+    std::string videoOutputPrefix = "";
+    if (!videoOutputPath.empty()) {
+        assert(videoOutputPath.size() >= 4);
+        assert(videoOutputPath.substr(videoOutputPath.size() - 4) == ".avi");
+        videoOutputPrefix = videoOutputPath.substr(0, videoOutputPath.size() - 4);
+    }
+    return std::unique_ptr<Recorder>(new RecorderImplementation(outputPath, videoOutputPrefix));
 }
 
 std::unique_ptr<Recorder> Recorder::build(std::ostream& output) {
