@@ -1,6 +1,8 @@
 #ifndef RECORDER_TYPES_H_
 #define RECORDER_TYPES_H_
 
+namespace cv { class Mat; } // fwd decl
+
 namespace recorder {
 struct Vector3d {
     double x, y, z;
@@ -30,6 +32,8 @@ struct FrameData {
     double focalLength;
     double px;
     double py;
+    /** Optional: Frame data as an OpenCV matrix. If present, recorded to a video file */
+    const cv::Mat *frameData = nullptr;
 };
 } // namespace recorder
 

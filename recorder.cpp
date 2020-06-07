@@ -1,5 +1,6 @@
 #include <cstdio>
 #include "recorder.hpp"
+#include "video.hpp"
 
 #define log_warn std::printf
 
@@ -10,8 +11,11 @@ using json = nlohmann::json;
 struct RecorderImplementation : public Recorder {
     std::ofstream fileOutput;
     std::ostream& output;
+    std::string videoOutputPrefix;
     int frameNumberGroup = 0;
     std::map<int, int> frameNumbers = {};
+    std::map<int, std::unique_ptr<VideoWriter> > videoWriters;
+    float fps = 30;
 
     // Preallocate.
     struct Workspace {
@@ -85,8 +89,16 @@ struct RecorderImplementation : public Recorder {
     }
 
     RecorderImplementation(const std::string& outputPath) :
-        fileOutput(outputPath),
-        output(this->fileOutput)
+            fileOutput(outputPath),
+            output(this->fileOutput)
+    {
+        init();
+    }
+
+    RecorderImplementation(const std::string& outputPath, const std::string& videoOutputPrefix) :
+            fileOutput(outputPath),
+            videoOutputPrefix(videoOutputPrefix),
+            output(this->fileOutput)
     {
         init();
     }
@@ -95,17 +107,17 @@ struct RecorderImplementation : public Recorder {
         output.precision(10);
     }
 
-    void closeOutputFile() {
+    void closeOutputFile() final {
         fileOutput.close();
     }
 
-    void addGyroscope(double t, double x, double y, double z) {
+    void addGyroscope(double t, double x, double y, double z) final {
         workspace.jGyroscope["time"] = t;
         workspace.jGyroscope["sensor"]["values"] = { x, y, z };
         output << workspace.jGyroscope.dump() << std::endl;
     }
 
-    void addAccelerometer(double t, double x, double y, double z) {
+    void addAccelerometer(double t, double x, double y, double z) final {
         workspace.jAccelerometer["time"] = t;
         workspace.jAccelerometer["sensor"]["values"] = { x, y, z };
         output << workspace.jAccelerometer.dump() << std::endl;
@@ -123,9 +135,16 @@ struct RecorderImplementation : public Recorder {
             workspace.jFrame["cameraParameters"]["principalPointX"] = f.px;
             workspace.jFrame["cameraParameters"]["principalPointY"] = f.py;
         }
+
+        if (!videoOutputPrefix.empty() && f.frameData != nullptr) {
+            if (!videoWriters.count(f.cameraInd)) {
+                videoWriters[f.cameraInd] = VideoWriter::build(videoOutputPrefix, f.cameraInd, fps, *f.frameData);
+            }
+            videoWriters.at(f.cameraInd)->write(*f.frameData);
+        }
     }
 
-    void addFrame(const FrameData& f) {
+    void addFrame(const FrameData& f) final {
         setFrame(f);
         workspace.jFrame["number"] = frameNumberGroup;
         workspace.jFrameGroup["time"] = f.t;
@@ -136,7 +155,7 @@ struct RecorderImplementation : public Recorder {
         frameNumberGroup++;
     }
 
-    void addFrameGroup(double t, const std::vector<FrameData>& frames) {
+    void addFrameGroup(double t, const std::vector<FrameData>& frames) final {
         workspace.jFrameGroup["time"] = t;
         workspace.jFrameGroup["number"] = frameNumberGroup;
         workspace.jFrameGroup["frames"] = {};
@@ -171,17 +190,17 @@ struct RecorderImplementation : public Recorder {
         }
     }
 
-    void addARKit(const Pose &pose) {
+    void addARKit(const Pose &pose) final {
         setPose(pose, workspace.jARKit, "ARKit", false);
         output << workspace.jARKit.dump() << std::endl;
     }
 
-    void addGroundTruth(const Pose &pose) {
+    void addGroundTruth(const Pose &pose) final {
         setPose(pose, workspace.jGroundTruth, "groundTruth", false);
         output << workspace.jGroundTruth.dump() << std::endl;
     }
 
-    void addOdometryOutput(const Pose &pose, const Vector3d &velocity) {
+    void addOdometryOutput(const Pose &pose, const Vector3d &velocity) final {
         setPose(pose, workspace.jOutput, "output", true);
         workspace.jOutput["output"]["velocity"]["x"] = velocity.x;
         workspace.jOutput["output"]["velocity"]["y"] = velocity.y;
@@ -194,7 +213,7 @@ struct RecorderImplementation : public Recorder {
         double latitude,
         double longitude,
         double horizontalUncertainty,
-        double altitude)
+        double altitude) final
     {
         workspace.jGps["time"] = t;
         workspace.jGps["gps"]["latitude"] = latitude;
@@ -205,7 +224,7 @@ struct RecorderImplementation : public Recorder {
         output << workspace.jGps.dump() << std::endl;
     }
 
-    void addJsonString(const std::string &line) {
+    void addJsonString(const std::string &line) final {
         json j;
         try {
             j = json::parse(line);
@@ -226,8 +245,12 @@ struct RecorderImplementation : public Recorder {
         }
     }
 
-    void addJson(const json &j) {
+    void addJson(const json &j) final {
         output << j.dump() << std::endl;
+    }
+
+    void setVideoRecordingFps(float f) final {
+        fps = f;
     }
 };
 
@@ -235,17 +258,18 @@ struct RecorderImplementation : public Recorder {
 
 namespace recorder {
 
-Recorder::~Recorder() = default;
-Recorder::Recorder(const Recorder &other) = default;
-
 std::unique_ptr<Recorder> Recorder::build(const std::string& outputPath) {
     return std::unique_ptr<Recorder>(new RecorderImplementation(outputPath));
+}
+
+std::unique_ptr<Recorder> Recorder::build(const std::string& outputPath, const std::string &videoRecordingPrefix) {
+    return std::unique_ptr<Recorder>(new RecorderImplementation(outputPath, videoRecordingPrefix));
 }
 
 std::unique_ptr<Recorder> Recorder::build(std::ostream& output) {
     return std::unique_ptr<Recorder>(new RecorderImplementation(output));
 }
 
-Recorder::Recorder() {}
+Recorder::~Recorder() = default;
 
 } // namespace recorder

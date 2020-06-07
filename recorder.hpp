@@ -20,6 +20,17 @@ public:
      * @param outputPath Platform path to a non-existing file which has write permissions.
      */
     static std::unique_ptr<Recorder> build(const std::string& outputPath);
+    /**
+     * New recorder that saves both a JSONL recording and AVI video recordings for frame
+     * bitmap data (if present). To work, this requires the recorder to be compiled with optional
+     * OpenCV support.
+     *
+     * @param outputPath JSONL output path
+     * @param videoRecordingPrefix Each camera will have its own video file, which will be named
+     *      prefix + index + ".avi" where the index part is left out for camera index 0. E.g.,
+     *      /prefix/path.avi, /prefix/path2.avi, /prefix/path3.avi.
+     */
+    static std::unique_ptr<Recorder> build(const std::string& outputPath, const std::string &videoRecordingPrefix);
 
     /**
      * @ param output Stream to which output will be written.
@@ -59,11 +70,14 @@ public:
      */
     virtual void addJson(const nlohmann::json &j) = 0;
 
-protected:
-    Recorder(const Recorder &other);
-    Recorder();
+    /**
+     * Set reported frames per second for video recording. This does not affect what frame
+     * data is actually recorded, only the FPS in the video file, which tells how fast the
+     * video should be played.
+     * @param fps Frames Per Second, e.g., 24, 25 or 30
+     */
+    virtual void setVideoRecordingFps(float fps) = 0;
 };
-
 } // namespace recorder
 
 #endif // RECORDER_H_

@@ -9,6 +9,9 @@ Dependencies (included as submodules)
  * https://github.com/nlohmann/json
  * optional for tests: https://github.com/catchorg/Catch2.git
 
+Recording video data to `.avi` files, in addition to the JSONL logs is also supported.
+This requires compiling with `-DUSE_OPENCV_VIDEO_RECORDING=ON` and OpenCV has to be available.
+
 ## Installation
 
 ### CMake project
