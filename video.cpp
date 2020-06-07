@@ -35,7 +35,7 @@ std::string videoOutputPath(const std::string &prefix, int cameraInd) {
     std::ostringstream oss;
     oss << prefix;
     if (cameraInd != 0) {
-        oss << cameraInd;
+        oss << (cameraInd + 1);
     }
     oss << ".avi"; // must be .avi so OpenCV can record this without FFMPEG
     return oss.str();
