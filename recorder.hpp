@@ -20,6 +20,25 @@ public:
      * @param outputPath Platform path to a non-existing file which has write permissions.
      */
     static std::unique_ptr<Recorder> build(const std::string& outputPath);
+    /**
+     * New recorder that saves both a JSONL recording and AVI video recordings for frame
+     * bitmap data (if present). To work, this requires the recorder to be compiled with
+     * OpenCV support.
+     *
+     * @param outputPath JSONL output path
+     * @param videoOutputPath The path in which video output is stored for the
+     *  first camera. In the stereo/multiple-camera case, each camera will have
+     *  its own video file, and their names are derived from this path.
+     *  Example
+     *      - videoOutputPath: "/path/to/example.avi"
+     *      - first camera (cameraInd = 0) file: "/path/to/example.avi"
+     *      - 2nd camera (cameraInd = 1) file: "/path/to/example2.avi"
+     *      - 3rd camera (cameraInd = 2) file: "/path/to/example3.avi"
+     *      - ...
+     *  Note that the file name must end in ".avi" due to OpenCV restrictions
+     *  (supprting other formats & codecs require nastier dependencies).
+     */
+    static std::unique_ptr<Recorder> build(const std::string& outputPath, const std::string &videoOutputPath);
 
     /**
      * @ param output Stream to which output will be written.
@@ -59,11 +78,14 @@ public:
      */
     virtual void addJson(const nlohmann::json &j) = 0;
 
-protected:
-    Recorder(const Recorder &other);
-    Recorder();
+    /**
+     * Set reported frames per second for video recording. This does not affect what frame
+     * data is actually recorded, only the FPS in the video file, which tells how fast the
+     * video should be played.
+     * @param fps Frames Per Second, e.g., 24, 25 or 30
+     */
+    virtual void setVideoRecordingFps(float fps) = 0;
 };
-
 } // namespace recorder
 
 #endif // RECORDER_H_
