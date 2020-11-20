@@ -50,7 +50,9 @@ public:
      * Flush and close output file.
      */
     virtual void closeOutputFile() = 0;
+    virtual void addGyroscope(const GyroscopeData &d) = 0;
     virtual void addGyroscope(double t, double x, double y, double z) = 0;
+    virtual void addAccelerometer(const AccelerometerData &d) = 0;
     virtual void addAccelerometer(double t, double x, double y, double z) = 0;
     virtual void addFrame(const FrameData& f) = 0;
     virtual void addFrameGroup(double t, const std::vector<FrameData>& frames) = 0;

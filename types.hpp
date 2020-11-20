@@ -39,6 +39,18 @@ struct FrameData {
     /** Optional: Frame data as an OpenCV matrix. If present, recorded to a video file */
     const cv::Mat *frameData = nullptr;
 };
+
+struct AccelerometerData {
+  double t;
+  double x, y, z;
+  double temperature = -1.0;
+};
+
+struct GyroscopeData {
+  double t;
+  double x, y, z;
+  double temperature = -1.0;
+};
 } // namespace recorder
 
 #endif

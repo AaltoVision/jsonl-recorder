@@ -23,14 +23,16 @@ struct RecorderImplementation : public Recorder {
             "time": 0.0,
             "sensor": {
                 "type": "gyroscope",
-                "values": [0.0, 0.0, 0.0]
+                "values": [0.0, 0.0, 0.0],
+                "temperature": 0.0
             }
         })"_json;
         json jAccelerometer = R"({
             "time": 0.0,
             "sensor": {
                 "type": "accelerometer",
-                "values": [0.0, 0.0, 0.0]
+                "values": [0.0, 0.0, 0.0],
+                "temperature": 0.0
             }
         })"_json;
         json jGps = R"({
@@ -111,16 +113,46 @@ struct RecorderImplementation : public Recorder {
         fileOutput.close();
     }
 
-    void addGyroscope(double t, double x, double y, double z) final {
-        workspace.jGyroscope["time"] = t;
-        workspace.jGyroscope["sensor"]["values"] = { x, y, z };
+    void addGyroscope(const GyroscopeData &d) final {
+        workspace.jGyroscope["time"] = d.t;
+        workspace.jGyroscope["sensor"]["values"] = { d.x, d.y, d.z };
+        workspace.jGyroscope["sensor"].erase("temperature");
+        if (d.temperature > 0.0) {
+          workspace.jGyroscope["sensor"]["temperature"] = d.temperature;
+        }
         output << workspace.jGyroscope.dump() << std::endl;
     }
 
-    void addAccelerometer(double t, double x, double y, double z) final {
-        workspace.jAccelerometer["time"] = t;
-        workspace.jAccelerometer["sensor"]["values"] = { x, y, z };
+    void addGyroscope(double t, double x, double y, double z) final {
+        GyroscopeData d {
+          .t = t,
+          .x = x,
+          .y = y,
+          .z = z,
+          .temperature = -1.0,
+        };
+        addGyroscope(d);
+    }
+
+    void addAccelerometer(const AccelerometerData &d) final {
+        workspace.jAccelerometer["time"] = d.t;
+        workspace.jAccelerometer["sensor"]["values"] = { d.x, d.y, d.z };
+        workspace.jAccelerometer["sensor"].erase("temperature");
+        if (d.temperature > 0.0) {
+          workspace.jAccelerometer["sensor"]["temperature"] = d.temperature;
+        }
         output << workspace.jAccelerometer.dump() << std::endl;
+    }
+
+    void addAccelerometer(double t, double x, double y, double z) final {
+        AccelerometerData d {
+          .t = t,
+          .x = x,
+          .y = y,
+          .z = z,
+          .temperature = -1.0,
+        };
+        addAccelerometer(d);
     }
 
     void setFrame(const FrameData& f) {
