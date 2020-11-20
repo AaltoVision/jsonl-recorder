@@ -99,8 +99,8 @@ struct RecorderImplementation : public Recorder {
 
     RecorderImplementation(const std::string& outputPath, const std::string& videoOutputPrefix) :
             fileOutput(outputPath),
-            videoOutputPrefix(videoOutputPrefix),
-            output(this->fileOutput)
+            output(this->fileOutput),
+            videoOutputPrefix(videoOutputPrefix)
     {
         init();
     }
