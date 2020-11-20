@@ -19,7 +19,7 @@ public:
      *
      * @param outputPath Platform path to a non-existing file which has write permissions.
      */
-    static std::unique_ptr<Recorder> build(const std::string& outputPath);
+    static std::unique_ptr<Recorder> build(const std::string &outputPath);
     /**
      * New recorder that saves both a JSONL recording and AVI video recordings for frame
      * bitmap data (if present). To work, this requires the recorder to be compiled with
@@ -38,22 +38,24 @@ public:
      *  Note that the file name must end in ".avi" due to OpenCV restrictions
      *  (supprting other formats & codecs require nastier dependencies).
      */
-    static std::unique_ptr<Recorder> build(const std::string& outputPath, const std::string &videoOutputPath);
+    static std::unique_ptr<Recorder> build(const std::string &outputPath, const std::string &videoOutputPath);
 
     /**
      * @ param output Stream to which output will be written.
      */
-    static std::unique_ptr<Recorder> build(std::ostream& output);
+    static std::unique_ptr<Recorder> build(std::ostream &output);
     virtual ~Recorder();
 
     /**
      * Flush and close output file.
      */
     virtual void closeOutputFile() = 0;
+    virtual void addGyroscope(const GyroscopeData &d) = 0;
     virtual void addGyroscope(double t, double x, double y, double z) = 0;
+    virtual void addAccelerometer(const AccelerometerData &d) = 0;
     virtual void addAccelerometer(double t, double x, double y, double z) = 0;
-    virtual void addFrame(const FrameData& f) = 0;
-    virtual void addFrameGroup(double t, const std::vector<FrameData>& frames) = 0;
+    virtual void addFrame(const FrameData &f) = 0;
+    virtual void addFrameGroup(double t, const std::vector<FrameData> &frames) = 0;
     virtual void addARKit(const Pose &pose) = 0;
     virtual void addGroundTruth(const Pose &pose) = 0;
     virtual void addOdometryOutput(const Pose &pose, const Vector3d &velocity) = 0;

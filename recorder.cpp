@@ -10,7 +10,7 @@ using json = nlohmann::json;
 
 struct RecorderImplementation : public Recorder {
     std::ofstream fileOutput;
-    std::ostream& output;
+    std::ostream &output;
     std::string videoOutputPrefix;
     int frameNumberGroup = 0;
     std::map<int, int> frameNumbers = {};
@@ -23,14 +23,16 @@ struct RecorderImplementation : public Recorder {
             "time": 0.0,
             "sensor": {
                 "type": "gyroscope",
-                "values": [0.0, 0.0, 0.0]
+                "values": [0.0, 0.0, 0.0],
+                "temperature": 0.0
             }
         })"_json;
         json jAccelerometer = R"({
             "time": 0.0,
             "sensor": {
                 "type": "accelerometer",
-                "values": [0.0, 0.0, 0.0]
+                "values": [0.0, 0.0, 0.0],
+                "temperature": 0.0
             }
         })"_json;
         json jGps = R"({
@@ -81,24 +83,24 @@ struct RecorderImplementation : public Recorder {
         })"_json;
     } workspace;
 
-    RecorderImplementation(std::ostream& output) :
+    RecorderImplementation(std::ostream &output) :
         fileOutput(),
         output(output)
     {
         init();
     }
 
-    RecorderImplementation(const std::string& outputPath) :
+    RecorderImplementation(const std::string &outputPath) :
             fileOutput(outputPath),
             output(this->fileOutput)
     {
         init();
     }
 
-    RecorderImplementation(const std::string& outputPath, const std::string& videoOutputPrefix) :
+    RecorderImplementation(const std::string &outputPath, const std::string &videoOutputPrefix) :
             fileOutput(outputPath),
-            videoOutputPrefix(videoOutputPrefix),
-            output(this->fileOutput)
+            output(this->fileOutput),
+            videoOutputPrefix(videoOutputPrefix)
     {
         init();
     }
@@ -111,25 +113,58 @@ struct RecorderImplementation : public Recorder {
         fileOutput.close();
     }
 
-    void addGyroscope(double t, double x, double y, double z) final {
-        workspace.jGyroscope["time"] = t;
-        workspace.jGyroscope["sensor"]["values"] = { x, y, z };
+    void addGyroscope(const GyroscopeData &d) final {
+        workspace.jGyroscope["time"] = d.t;
+        workspace.jGyroscope["sensor"]["values"] = { d.x, d.y, d.z };
+        workspace.jGyroscope["sensor"].erase("temperature");
+        if (d.temperature > 0.0) {
+          workspace.jGyroscope["sensor"]["temperature"] = d.temperature;
+        }
         output << workspace.jGyroscope.dump() << std::endl;
     }
 
-    void addAccelerometer(double t, double x, double y, double z) final {
-        workspace.jAccelerometer["time"] = t;
-        workspace.jAccelerometer["sensor"]["values"] = { x, y, z };
+    void addGyroscope(double t, double x, double y, double z) final {
+        GyroscopeData d {
+          .t = t,
+          .x = x,
+          .y = y,
+          .z = z,
+          .temperature = -1.0,
+        };
+        addGyroscope(d);
+    }
+
+    void addAccelerometer(const AccelerometerData &d) final {
+        workspace.jAccelerometer["time"] = d.t;
+        workspace.jAccelerometer["sensor"]["values"] = { d.x, d.y, d.z };
+        workspace.jAccelerometer["sensor"].erase("temperature");
+        if (d.temperature > 0.0) {
+          workspace.jAccelerometer["sensor"]["temperature"] = d.temperature;
+        }
         output << workspace.jAccelerometer.dump() << std::endl;
     }
 
-    void setFrame(const FrameData& f) {
+    void addAccelerometer(double t, double x, double y, double z) final {
+        AccelerometerData d {
+          .t = t,
+          .x = x,
+          .y = y,
+          .z = z,
+          .temperature = -1.0,
+        };
+        addAccelerometer(d);
+    }
+
+    void setFrame(const FrameData &f) {
         workspace.jFrame["time"] = f.t;
         workspace.jFrame["cameraInd"] = f.cameraInd;
 
         workspace.jFrame.erase("cameraParameters");
-        if (f.focalLength > 0.0) {
-            workspace.jFrame["cameraParameters"]["focalLength"] = f.focalLength;
+        if (f.focalLengthX > 0.0) {
+            workspace.jFrame["cameraParameters"]["focalLengthX"] = f.focalLengthX;
+        }
+        if (f.focalLengthY > 0.0) {
+            workspace.jFrame["cameraParameters"]["focalLengthY"] = f.focalLengthY;
         }
         if (f.px > 0.0 && f.py > 0.0) {
             workspace.jFrame["cameraParameters"]["principalPointX"] = f.px;
@@ -144,7 +179,7 @@ struct RecorderImplementation : public Recorder {
         }
     }
 
-    void addFrame(const FrameData& f) final {
+    void addFrame(const FrameData &f) final {
         setFrame(f);
         workspace.jFrame["number"] = frameNumberGroup;
         workspace.jFrameGroup["time"] = f.t;
@@ -155,7 +190,7 @@ struct RecorderImplementation : public Recorder {
         frameNumberGroup++;
     }
 
-    void addFrameGroup(double t, const std::vector<FrameData>& frames) final {
+    void addFrameGroup(double t, const std::vector<FrameData> &frames) final {
         workspace.jFrameGroup["time"] = t;
         workspace.jFrameGroup["number"] = frameNumberGroup;
         workspace.jFrameGroup["frames"] = {};
@@ -258,11 +293,11 @@ struct RecorderImplementation : public Recorder {
 
 namespace recorder {
 
-std::unique_ptr<Recorder> Recorder::build(const std::string& outputPath) {
+std::unique_ptr<Recorder> Recorder::build(const std::string &outputPath) {
     return std::unique_ptr<Recorder>(new RecorderImplementation(outputPath));
 }
 
-std::unique_ptr<Recorder> Recorder::build(const std::string& outputPath, const std::string &videoOutputPath) {
+std::unique_ptr<Recorder> Recorder::build(const std::string &outputPath, const std::string &videoOutputPath) {
     std::string videoOutputPrefix = "";
     if (!videoOutputPath.empty()) {
         assert(videoOutputPath.size() >= 4);
@@ -272,7 +307,7 @@ std::unique_ptr<Recorder> Recorder::build(const std::string& outputPath, const s
     return std::unique_ptr<Recorder>(new RecorderImplementation(outputPath, videoOutputPrefix));
 }
 
-std::unique_ptr<Recorder> Recorder::build(std::ostream& output) {
+std::unique_ptr<Recorder> Recorder::build(std::ostream &output) {
     return std::unique_ptr<Recorder>(new RecorderImplementation(output));
 }
 

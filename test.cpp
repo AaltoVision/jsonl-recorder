@@ -25,14 +25,16 @@ TEST_CASE( "recorder", "[jsonl-recorder]" ) {
     auto f0 = recorder::FrameData {
         .t = 0.0,
         .cameraInd = 0,
-        .focalLength = 1000.0,
+        .focalLengthX = 1000.0,
+        .focalLengthY = 1000.0,
         .px = 640.0,
         .py = 360.0
     };
     auto f1 = recorder::FrameData {
         .t = 0.0,
         .cameraInd = 1,
-        .focalLength = 1001.0,
+        .focalLengthX = 1001.0,
+        .focalLengthY = 1001.0,
         .px = 640.0,
         .py = 360.0
     };
