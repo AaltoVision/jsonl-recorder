@@ -10,7 +10,7 @@ using json = nlohmann::json;
 
 struct RecorderImplementation : public Recorder {
     std::ofstream fileOutput;
-    std::ostream& output;
+    std::ostream &output;
     std::string videoOutputPrefix;
     int frameNumberGroup = 0;
     std::map<int, int> frameNumbers = {};
@@ -83,21 +83,21 @@ struct RecorderImplementation : public Recorder {
         })"_json;
     } workspace;
 
-    RecorderImplementation(std::ostream& output) :
+    RecorderImplementation(std::ostream &output) :
         fileOutput(),
         output(output)
     {
         init();
     }
 
-    RecorderImplementation(const std::string& outputPath) :
+    RecorderImplementation(const std::string &outputPath) :
             fileOutput(outputPath),
             output(this->fileOutput)
     {
         init();
     }
 
-    RecorderImplementation(const std::string& outputPath, const std::string& videoOutputPrefix) :
+    RecorderImplementation(const std::string &outputPath, const std::string &videoOutputPrefix) :
             fileOutput(outputPath),
             output(this->fileOutput),
             videoOutputPrefix(videoOutputPrefix)
@@ -155,7 +155,7 @@ struct RecorderImplementation : public Recorder {
         addAccelerometer(d);
     }
 
-    void setFrame(const FrameData& f) {
+    void setFrame(const FrameData &f) {
         workspace.jFrame["time"] = f.t;
         workspace.jFrame["cameraInd"] = f.cameraInd;
 
@@ -179,7 +179,7 @@ struct RecorderImplementation : public Recorder {
         }
     }
 
-    void addFrame(const FrameData& f) final {
+    void addFrame(const FrameData &f) final {
         setFrame(f);
         workspace.jFrame["number"] = frameNumberGroup;
         workspace.jFrameGroup["time"] = f.t;
@@ -190,7 +190,7 @@ struct RecorderImplementation : public Recorder {
         frameNumberGroup++;
     }
 
-    void addFrameGroup(double t, const std::vector<FrameData>& frames) final {
+    void addFrameGroup(double t, const std::vector<FrameData> &frames) final {
         workspace.jFrameGroup["time"] = t;
         workspace.jFrameGroup["number"] = frameNumberGroup;
         workspace.jFrameGroup["frames"] = {};
@@ -293,11 +293,11 @@ struct RecorderImplementation : public Recorder {
 
 namespace recorder {
 
-std::unique_ptr<Recorder> Recorder::build(const std::string& outputPath) {
+std::unique_ptr<Recorder> Recorder::build(const std::string &outputPath) {
     return std::unique_ptr<Recorder>(new RecorderImplementation(outputPath));
 }
 
-std::unique_ptr<Recorder> Recorder::build(const std::string& outputPath, const std::string &videoOutputPath) {
+std::unique_ptr<Recorder> Recorder::build(const std::string &outputPath, const std::string &videoOutputPath) {
     std::string videoOutputPrefix = "";
     if (!videoOutputPath.empty()) {
         assert(videoOutputPath.size() >= 4);
@@ -307,7 +307,7 @@ std::unique_ptr<Recorder> Recorder::build(const std::string& outputPath, const s
     return std::unique_ptr<Recorder>(new RecorderImplementation(outputPath, videoOutputPrefix));
 }
 
-std::unique_ptr<Recorder> Recorder::build(std::ostream& output) {
+std::unique_ptr<Recorder> Recorder::build(std::ostream &output) {
     return std::unique_ptr<Recorder>(new RecorderImplementation(output));
 }
 
