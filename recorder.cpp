@@ -128,8 +128,11 @@ struct RecorderImplementation : public Recorder {
         workspace.jFrame["cameraInd"] = f.cameraInd;
 
         workspace.jFrame.erase("cameraParameters");
-        if (f.focalLength > 0.0) {
-            workspace.jFrame["cameraParameters"]["focalLength"] = f.focalLength;
+        if (f.focalLengthX > 0.0) {
+            workspace.jFrame["cameraParameters"]["focalLengthX"] = f.focalLengthX;
+        }
+        if (f.focalLengthY > 0.0) {
+            workspace.jFrame["cameraParameters"]["focalLengthY"] = f.focalLengthY;
         }
         if (f.px > 0.0 && f.py > 0.0) {
             workspace.jFrame["cameraParameters"]["principalPointX"] = f.px;

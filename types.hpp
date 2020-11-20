@@ -27,9 +27,13 @@ struct Pose {
 };
 
 struct FrameData {
+    /** Timestamp in seconds. Monotonically increasing */
     double t;
+    /** Index to separate multiple cameras. 0, 1, … */
     int cameraInd;
-    double focalLength;
+    double focalLengthX;
+    double focalLengthY;
+    /** Principal point **/
     double px;
     double py;
     /** Optional: Frame data as an OpenCV matrix. If present, recorded to a video file */
