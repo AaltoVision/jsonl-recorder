@@ -15,6 +15,7 @@ public:
         double principalPointY = -1;
     };
 
+    double getSmallestTimestamp(std::string jsonlFilePath);
     void read(std::string jsonlFilePath);
 
     std::function<void(double time, double x, double y, double z)> onGyroscope;
