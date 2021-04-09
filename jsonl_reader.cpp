@@ -1,9 +1,30 @@
-#include <fstream>
-#include <nlohmann/json.hpp>
 #include "jsonl_reader.hpp"
+
+#include <fstream>
+#include <limits>
 #include <iostream>
+#include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
+
+double JsonlReader::getSmallestTimestamp(std::string jsonlFilePath) {
+    std::ifstream dataFile;
+    dataFile.open(jsonlFilePath);
+    if (!dataFile.is_open()) {
+        assert(false && "JSONL file not found");
+    }
+
+    double t0 = std::numeric_limits<double>::infinity();
+    std::string line;
+    while (std::getline(dataFile, line)) {
+        json j = json::parse(line);
+        if (j.find("time") != j.end()) {
+            double t = j["time"].get<double>();
+            if (t < t0) t0 = t;
+        }
+    }
+    return t0;
+}
 
 void JsonlReader::read(std::string jsonlFilePath) {
     std::ifstream dataFile;
