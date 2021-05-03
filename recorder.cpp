@@ -1,6 +1,13 @@
 #include <cstdio>
 #include "recorder.hpp"
 #include "video.hpp"
+#include "multithreading/allocator.hpp"
+#include "multithreading/future.hpp"
+
+#ifdef USE_OPENCV_VIDEO_RECORDING
+#include <opencv2/core.hpp>
+#endif
+
 
 #define log_warn std::printf
 
@@ -15,7 +22,11 @@ struct RecorderImplementation : public Recorder {
     int frameNumberGroup = 0;
     std::map<int, int> frameNumbers = {};
     std::map<int, std::unique_ptr<VideoWriter> > videoWriters;
+    std::map<int, std::unique_ptr<accelerated::Processor> > videoProcessors;
     float fps = 30;
+    std::unique_ptr<recorder::Allocator<cv::Mat>> frameStore;
+    std::unique_ptr<accelerated::Processor> jsonlProcessor;
+
 
     // Preallocate.
     struct Workspace {
@@ -81,6 +92,10 @@ struct RecorderImplementation : public Recorder {
             "number": 0,
             "frames": []
         })"_json;
+        json jFrameDrop = R"({
+            "time": 0.0,
+            "droppedFrame": true
+        })"_json;
     } workspace;
 
     RecorderImplementation(std::ostream &output) :
@@ -107,6 +122,13 @@ struct RecorderImplementation : public Recorder {
 
     void init() {
         output.precision(10);
+        jsonlProcessor = accelerated::Processor::createThreadPool(1);
+        #ifdef USE_OPENCV_VIDEO_RECORDING
+        frameStore = std::make_unique<recorder::Allocator<cv::Mat>>(
+            []() { return std::make_unique<cv::Mat>(); }
+        );
+        #endif
+
     }
 
     void closeOutputFile() final {
@@ -114,13 +136,15 @@ struct RecorderImplementation : public Recorder {
     }
 
     void addGyroscope(const GyroscopeData &d) final {
-        workspace.jGyroscope["time"] = d.t;
-        workspace.jGyroscope["sensor"]["values"] = { d.x, d.y, d.z };
-        workspace.jGyroscope["sensor"].erase("temperature");
-        if (d.temperature > 0.0) {
-          workspace.jGyroscope["sensor"]["temperature"] = d.temperature;
-        }
-        output << workspace.jGyroscope.dump() << std::endl;
+        jsonlProcessor->enqueue([this, d]() {
+            workspace.jGyroscope["time"] = d.t;
+            workspace.jGyroscope["sensor"]["values"] = { d.x, d.y, d.z };
+            workspace.jGyroscope["sensor"].erase("temperature");
+            if (d.temperature > 0.0) {
+            workspace.jGyroscope["sensor"]["temperature"] = d.temperature;
+            }
+            output << workspace.jGyroscope.dump() << std::endl;
+        });
     }
 
     void addGyroscope(double t, double x, double y, double z) final {
@@ -135,13 +159,15 @@ struct RecorderImplementation : public Recorder {
     }
 
     void addAccelerometer(const AccelerometerData &d) final {
-        workspace.jAccelerometer["time"] = d.t;
-        workspace.jAccelerometer["sensor"]["values"] = { d.x, d.y, d.z };
-        workspace.jAccelerometer["sensor"].erase("temperature");
-        if (d.temperature > 0.0) {
-          workspace.jAccelerometer["sensor"]["temperature"] = d.temperature;
-        }
-        output << workspace.jAccelerometer.dump() << std::endl;
+        jsonlProcessor->enqueue([this, d]() {
+            workspace.jAccelerometer["time"] = d.t;
+            workspace.jAccelerometer["sensor"]["values"] = { d.x, d.y, d.z };
+            workspace.jAccelerometer["sensor"].erase("temperature");
+            if (d.temperature > 0.0) {
+            workspace.jAccelerometer["sensor"]["temperature"] = d.temperature;
+            }
+            output << workspace.jAccelerometer.dump() << std::endl;
+        });
     }
 
     void addAccelerometer(double t, double x, double y, double z) final {
@@ -170,44 +196,98 @@ struct RecorderImplementation : public Recorder {
             workspace.jFrame["cameraParameters"]["principalPointX"] = f.px;
             workspace.jFrame["cameraParameters"]["principalPointY"] = f.py;
         }
-
-        if (!videoOutputPrefix.empty() && f.frameData != nullptr) {
-            if (!videoWriters.count(f.cameraInd)) {
-                videoWriters[f.cameraInd] = VideoWriter::build(videoOutputPrefix, f.cameraInd, fps, *f.frameData);
-            }
-            videoWriters.at(f.cameraInd)->write(*f.frameData);
-        }
     }
 
-    void addFrame(const FrameData &f) final {
-        setFrame(f);
-        workspace.jFrame["number"] = frameNumberGroup;
-        workspace.jFrameGroup["time"] = f.t;
-        workspace.jFrameGroup["number"] = frameNumberGroup;
-        workspace.jFrameGroup["frames"] = {};
-        workspace.jFrameGroup["frames"].push_back(workspace.jFrame);
-        output << workspace.jFrameGroup.dump() << std::endl;
-        frameNumberGroup++;
+    void frameDrop(double time) {
+        jsonlProcessor->enqueue([this, time]() {
+            workspace.jFrameDrop["time"] = time;
+            output << workspace.jFrameDrop.dump() << std::endl;
+        });
     }
 
-    void addFrameGroup(double t, const std::vector<FrameData> &frames) final {
-        workspace.jFrameGroup["time"] = t;
-        workspace.jFrameGroup["number"] = frameNumberGroup;
-        workspace.jFrameGroup["frames"] = {};
+    #ifdef USE_OPENCV_VIDEO_RECORDING
+    bool allocateAndWriteVideo(const std::vector<FrameData> &frames) {
+        std::vector<std::shared_ptr<cv::Mat>> allocatedFrames;
         for (auto f : frames) {
-            // Track frame numbers of each camera because some frame groups
-            // may only contain output from some of the cameras (happens on iOS).
-            try {
-                frameNumbers.at(f.cameraInd)++;
-            } catch (const std::out_of_range &e) {
-                frameNumbers[f.cameraInd] = 0;
+            std::shared_ptr<cv::Mat> allocatedFrameData;
+            if (f.frameData != nullptr) {
+                allocatedFrameData = frameStore->next();
+                if (!allocatedFrameData) return false;
+                *(allocatedFrameData.get()) = f.frameData->clone();
             }
-            setFrame(f);
-            workspace.jFrame["number"] = frameNumbers[f.cameraInd];
-            workspace.jFrameGroup["frames"].push_back(workspace.jFrame);
+            allocatedFrames.push_back(allocatedFrameData);
         }
-        output << workspace.jFrameGroup.dump() << std::endl;
-        frameNumberGroup++;
+
+        for (size_t i = 0; i < frames.size(); i++) {
+            auto allocatedFrameData = allocatedFrames[i];
+            if (!allocatedFrameData) continue;
+            int cameraInd = frames[i].cameraInd;
+            if (!videoWriters.count(cameraInd)) {
+                videoWriters[cameraInd] = VideoWriter::build(videoOutputPrefix, cameraInd, fps, *allocatedFrameData.get());
+                videoProcessors[cameraInd] = accelerated::Processor::createThreadPool(1);
+            }
+            videoProcessors.at(cameraInd)->enqueue([this, cameraInd, allocatedFrameData]() {
+                videoWriters.at(cameraInd)->write(*allocatedFrameData.get());
+            });
+        }
+        return true;
+    }
+    #endif
+
+    bool addFrame(const FrameData &f) final {
+        #ifdef USE_OPENCV_VIDEO_RECORDING
+        if (!videoOutputPrefix.empty()) {
+            const std::vector<FrameData> &frames{f};
+            if (!allocateAndWriteVideo(frames)) {
+                frameDrop(f.t);
+                return false;
+            }
+        }
+        #endif
+
+        jsonlProcessor->enqueue([this, f]() { // f.frameData pointer no longer valid
+            setFrame(f);
+            workspace.jFrame["number"] = frameNumberGroup;
+            workspace.jFrameGroup["time"] = f.t;
+            workspace.jFrameGroup["number"] = frameNumberGroup;
+            workspace.jFrameGroup["frames"] = {};
+            workspace.jFrameGroup["frames"].push_back(workspace.jFrame);
+            output << workspace.jFrameGroup.dump() << std::endl;
+            frameNumberGroup++;
+        });
+        return true;
+    }
+
+    bool addFrameGroup(double t, const std::vector<FrameData> &frames) final {
+        #ifdef USE_OPENCV_VIDEO_RECORDING
+        if (!videoOutputPrefix.empty()) {
+            if (!allocateAndWriteVideo(frames)) {
+                frameDrop(t);
+                return false;
+            }
+        }
+        #endif
+
+        jsonlProcessor->enqueue([this, t, frames]() {
+            workspace.jFrameGroup["time"] = t;
+            workspace.jFrameGroup["number"] = frameNumberGroup;
+            workspace.jFrameGroup["frames"] = {};
+            for (auto f : frames) { // f.frameData pointer no longer valid
+                // Track frame numbers of each camera because some frame groups
+                // may only contain output from some of the cameras (happens on iOS).
+                try {
+                    frameNumbers.at(f.cameraInd)++;
+                } catch (const std::out_of_range &e) {
+                    frameNumbers[f.cameraInd] = 0;
+                }
+                setFrame(f);
+                workspace.jFrame["number"] = frameNumbers[f.cameraInd];
+                workspace.jFrameGroup["frames"].push_back(workspace.jFrame);
+            }
+            output << workspace.jFrameGroup.dump() << std::endl;
+            frameNumberGroup++;
+        });
+        return true;
     }
 
     void setPose(const Pose &pose, json &j, const std::string &name, bool hasOrientation) {
@@ -226,21 +306,27 @@ struct RecorderImplementation : public Recorder {
     }
 
     void addARKit(const Pose &pose) final {
-        setPose(pose, workspace.jARKit, "ARKit", false);
-        output << workspace.jARKit.dump() << std::endl;
+        jsonlProcessor->enqueue([this, pose]() {
+            setPose(pose, workspace.jARKit, "ARKit", false);
+            output << workspace.jARKit.dump() << std::endl;
+        });
     }
 
     void addGroundTruth(const Pose &pose) final {
-        setPose(pose, workspace.jGroundTruth, "groundTruth", false);
-        output << workspace.jGroundTruth.dump() << std::endl;
+        jsonlProcessor->enqueue([this, pose]() {
+            setPose(pose, workspace.jGroundTruth, "groundTruth", false);
+            output << workspace.jGroundTruth.dump() << std::endl;
+        });
     }
 
     void addOdometryOutput(const Pose &pose, const Vector3d &velocity) final {
-        setPose(pose, workspace.jOutput, "output", true);
-        workspace.jOutput["output"]["velocity"]["x"] = velocity.x;
-        workspace.jOutput["output"]["velocity"]["y"] = velocity.y;
-        workspace.jOutput["output"]["velocity"]["z"] = velocity.z;
-        output << workspace.jOutput.dump() << std::endl;
+        jsonlProcessor->enqueue([this, pose, velocity]() {
+            setPose(pose, workspace.jOutput, "output", true);
+            workspace.jOutput["output"]["velocity"]["x"] = velocity.x;
+            workspace.jOutput["output"]["velocity"]["y"] = velocity.y;
+            workspace.jOutput["output"]["velocity"]["z"] = velocity.z;
+            output << workspace.jOutput.dump() << std::endl;
+        });
     }
 
     void addGps(
@@ -250,38 +336,44 @@ struct RecorderImplementation : public Recorder {
         double horizontalUncertainty,
         double altitude) final
     {
-        workspace.jGps["time"] = t;
-        workspace.jGps["gps"]["latitude"] = latitude;
-        workspace.jGps["gps"]["longitude"] = longitude;
-        // We have no standard for what "accuracy" means.
-        workspace.jGps["gps"]["accuracy"] = horizontalUncertainty;
-        workspace.jGps["gps"]["altitude"] = altitude;
-        output << workspace.jGps.dump() << std::endl;
+        jsonlProcessor->enqueue([this, t, latitude, longitude, horizontalUncertainty, altitude]() {
+            workspace.jGps["time"] = t;
+            workspace.jGps["gps"]["latitude"] = latitude;
+            workspace.jGps["gps"]["longitude"] = longitude;
+            // We have no standard for what "accuracy" means.
+            workspace.jGps["gps"]["accuracy"] = horizontalUncertainty;
+            workspace.jGps["gps"]["altitude"] = altitude;
+            output << workspace.jGps.dump() << std::endl;
+        });
     }
 
     void addJsonString(const std::string &line) final {
-        json j;
-        try {
-            j = json::parse(line);
-        } catch (const nlohmann::detail::parse_error &e) {
-            log_warn("recorder addLine(): Skipping invalid JSON: %s", line.c_str());
-            return;
-        }
+        jsonlProcessor->enqueue([this, line]() {
+            json j;
+            try {
+                j = json::parse(line);
+            } catch (const nlohmann::detail::parse_error &e) {
+                log_warn("recorder addLine(): Skipping invalid JSON: %s", line.c_str());
+                return;
+            }
 
-        // Make sure output is exactly one line.
-        size_t n = line.find('\n');
-        if (n == std::string::npos) {
-            output << line << std::endl;
-        } else if (n + 1 < line.size()) {
-            // Re-serialize multiline input.
-            output << j.dump() << std::endl;
-        } else {
-            output << line;
-        }
+            // Make sure output is exactly one line.
+            size_t n = line.find('\n');
+            if (n == std::string::npos) {
+                output << line << std::endl;
+            } else if (n + 1 < line.size()) {
+                // Re-serialize multiline input.
+                output << j.dump() << std::endl;
+            } else {
+                output << line;
+            }
+        });
     }
 
     void addJson(const json &j) final {
-        output << j.dump() << std::endl;
+        jsonlProcessor->enqueue([this, j]() {
+            output << j.dump() << std::endl;
+        });
     }
 
     void setVideoRecordingFps(float f) final {

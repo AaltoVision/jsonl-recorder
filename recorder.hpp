@@ -54,8 +54,6 @@ public:
     virtual void addGyroscope(double t, double x, double y, double z) = 0;
     virtual void addAccelerometer(const AccelerometerData &d) = 0;
     virtual void addAccelerometer(double t, double x, double y, double z) = 0;
-    virtual void addFrame(const FrameData &f) = 0;
-    virtual void addFrameGroup(double t, const std::vector<FrameData> &frames) = 0;
     virtual void addARKit(const Pose &pose) = 0;
     virtual void addGroundTruth(const Pose &pose) = 0;
     virtual void addOdometryOutput(const Pose &pose, const Vector3d &velocity) = 0;
@@ -65,6 +63,10 @@ public:
         double longitude,
         double horizontalUncertainty,
         double altitude) = 0;
+    // If addFrame*** fails because of econding/writing can't keep up, call will return false
+    // and frame is skipped. A dropped frame entry is added to the JSONL file.
+    virtual bool addFrame(const FrameData &f) = 0;
+    virtual bool addFrameGroup(double t, const std::vector<FrameData> &frames) = 0;
 
     /**
      * Write arbitrary serialized JSON into the recording.
