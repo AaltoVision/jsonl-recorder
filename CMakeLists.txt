@@ -3,18 +3,24 @@ set(LIBNAME jsonl-recorder)
 project(${LIBNAME})
 
 set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -Wextra -O2")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -Wall -Wextra -O2")
 
 if (NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
 option(USE_OPENCV_VIDEO_RECORDING "Video recording with OpenCV" OFF)
-add_library(${LIBNAME} recorder.cpp video.cpp jsonl_reader.cpp)
+add_library(${LIBNAME}
+  multithreading/future.cpp
+  multithreading/queue.cpp
+  recorder.cpp
+  video.cpp
+  jsonl_reader.cpp)
 set_target_properties(${LIBNAME} PROPERTIES PUBLIC_HEADER "recorder.hpp;types.hpp;jsonl_reader.hpp")
 set(JSON_BuildTests OFF CACHE INTERNAL "")
 add_subdirectory(json ${CMAKE_CURRENT_BINARY_DIR}/nlohmann_json)
-set(JSONL_RECORDER_LIBRARY_DEPS nlohmann_json::nlohmann_json)
+find_package(Threads)
+set(JSONL_RECORDER_LIBRARY_DEPS nlohmann_json::nlohmann_json Threads::Threads)
 if (USE_OPENCV_VIDEO_RECORDING)
     find_package(OpenCV REQUIRED)
     target_compile_definitions(${LIBNAME} PRIVATE "-DUSE_OPENCV_VIDEO_RECORDING")
