@@ -26,6 +26,7 @@ struct RecorderImplementation : public Recorder {
     float fps = 30;
     std::unique_ptr<recorder::Allocator<cv::Mat>> frameStore;
     std::unique_ptr<Processor> jsonlProcessor;
+    std::vector<std::shared_ptr<cv::Mat>> allocatedFrames;
 
 
     // Preallocate.
@@ -124,8 +125,14 @@ struct RecorderImplementation : public Recorder {
         output.precision(10);
         jsonlProcessor = Processor::createThreadPool(1);
         #ifdef USE_OPENCV_VIDEO_RECORDING
+        constexpr std::size_t INIT_CAPACITY = 0;
+        constexpr std::size_t CAPACITY_INCREASE = 4;
+        // Shared between stereo, i.e. MAX_CAPACITY mono frames, or MAX_CAPACITY/2 stereo pairs can
+        // be buffered in memory before frame skipping occurs if video encoding cannot keep up
+        constexpr std::size_t MAX_CAPACITY = 20;
         frameStore = std::make_unique<recorder::Allocator<cv::Mat>>(
-            []() { return std::make_unique<cv::Mat>(); }
+            []() { return std::make_unique<cv::Mat>(); },
+            INIT_CAPACITY, CAPACITY_INCREASE, MAX_CAPACITY
         );
         #endif
 
@@ -207,7 +214,7 @@ struct RecorderImplementation : public Recorder {
 
     #ifdef USE_OPENCV_VIDEO_RECORDING
     bool allocateAndWriteVideo(const std::vector<FrameData> &frames) {
-        std::vector<std::shared_ptr<cv::Mat>> allocatedFrames;
+        allocatedFrames.clear();
         for (auto f : frames) {
             std::shared_ptr<cv::Mat> allocatedFrameData;
             if (f.frameData != nullptr) {
