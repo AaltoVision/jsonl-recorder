@@ -22,10 +22,10 @@ struct RecorderImplementation : public Recorder {
     int frameNumberGroup = 0;
     std::map<int, int> frameNumbers = {};
     std::map<int, std::unique_ptr<VideoWriter> > videoWriters;
-    std::map<int, std::unique_ptr<accelerated::Processor> > videoProcessors;
+    std::map<int, std::unique_ptr<Processor> > videoProcessors;
     float fps = 30;
     std::unique_ptr<recorder::Allocator<cv::Mat>> frameStore;
-    std::unique_ptr<accelerated::Processor> jsonlProcessor;
+    std::unique_ptr<Processor> jsonlProcessor;
 
 
     // Preallocate.
@@ -122,7 +122,7 @@ struct RecorderImplementation : public Recorder {
 
     void init() {
         output.precision(10);
-        jsonlProcessor = accelerated::Processor::createThreadPool(1);
+        jsonlProcessor = Processor::createThreadPool(1);
         #ifdef USE_OPENCV_VIDEO_RECORDING
         frameStore = std::make_unique<recorder::Allocator<cv::Mat>>(
             []() { return std::make_unique<cv::Mat>(); }
@@ -224,7 +224,7 @@ struct RecorderImplementation : public Recorder {
             int cameraInd = frames[i].cameraInd;
             if (!videoWriters.count(cameraInd)) {
                 videoWriters[cameraInd] = VideoWriter::build(videoOutputPrefix, cameraInd, fps, *allocatedFrameData.get());
-                videoProcessors[cameraInd] = accelerated::Processor::createThreadPool(1);
+                videoProcessors[cameraInd] = Processor::createThreadPool(1);
             }
             videoProcessors.at(cameraInd)->enqueue([this, cameraInd, allocatedFrameData]() {
                 videoWriters.at(cameraInd)->write(*allocatedFrameData.get());

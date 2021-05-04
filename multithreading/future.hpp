@@ -3,7 +3,7 @@
 #include <memory>
 #include <functional>
 
-namespace accelerated {
+namespace recorder {
 
 // Allows implementing both syncrhonous and asynchronus operations conveniently
 // Smart pointer stuff is encapsulated here for convenience and avoiding the

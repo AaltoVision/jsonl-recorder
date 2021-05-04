@@ -5,9 +5,9 @@
 #include <vector>
 
 #include "future.hpp"
-#include "assert.hpp"
+#include <cassert>
 
-namespace accelerated {
+namespace recorder {
 namespace {
 struct BlockingQueue : Queue {
     virtual bool waitAndProcessOne() = 0;
@@ -111,7 +111,7 @@ public:
     }
 
     ThreadPool(int nThreads) : queue(new QueueImplementation) {
-        aa_assert(nThreads > 0);
+        assert(nThreads > 0);
         for (int i = 0; i < nThreads; ++i) {
             pool.emplace_back([this]{ work(); });
         }

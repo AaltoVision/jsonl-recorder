@@ -11,7 +11,6 @@ endif()
 
 option(USE_OPENCV_VIDEO_RECORDING "Video recording with OpenCV" OFF)
 add_library(${LIBNAME}
-  multithreading/assert.cpp
   multithreading/future.cpp
   multithreading/queue.cpp
   recorder.cpp
@@ -20,7 +19,8 @@ add_library(${LIBNAME}
 set_target_properties(${LIBNAME} PROPERTIES PUBLIC_HEADER "recorder.hpp;types.hpp;jsonl_reader.hpp")
 set(JSON_BuildTests OFF CACHE INTERNAL "")
 add_subdirectory(json ${CMAKE_CURRENT_BINARY_DIR}/nlohmann_json)
-set(JSONL_RECORDER_LIBRARY_DEPS nlohmann_json::nlohmann_json)
+find_package(Threads)
+set(JSONL_RECORDER_LIBRARY_DEPS nlohmann_json::nlohmann_json Threads::Threads)
 if (USE_OPENCV_VIDEO_RECORDING)
     find_package(OpenCV REQUIRED)
     target_compile_definitions(${LIBNAME} PRIVATE "-DUSE_OPENCV_VIDEO_RECORDING")

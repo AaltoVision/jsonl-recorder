@@ -1,9 +1,9 @@
 #include <future>
 
 #include "future.hpp"
-#include "assert.hpp"
+#include <cassert>
 
-namespace accelerated {
+namespace recorder {
 namespace {
 struct InstantState : Future::State {
     void wait() final {};
@@ -56,7 +56,7 @@ Future Future::instantlyResolved() {
 }
 
 void Future::wait() {
-    aa_assert(state);
+    assert(state);
     return state->wait();
 }
 
