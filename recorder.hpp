@@ -65,8 +65,10 @@ public:
         double altitude) = 0;
     // If addFrame*** fails because of econding/writing can't keep up, call will return false
     // and frame is skipped. A dropped frame entry is added to the JSONL file.
-    virtual bool addFrame(const FrameData &f) = 0;
-    virtual bool addFrameGroup(double t, const std::vector<FrameData> &frames) = 0;
+    // When cloneImage is used, cv::Mat is cloned, otherwise existing data is used meaning you shouldn't
+    // modify or reuse it.
+    virtual bool addFrame(const FrameData &f, bool cloneImage = true) = 0;
+    virtual bool addFrameGroup(double t, const std::vector<FrameData> &frames, bool cloneImage = true) = 0;
 
     /**
      * Write arbitrary serialized JSON into the recording.

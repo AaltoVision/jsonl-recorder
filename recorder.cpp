@@ -213,14 +213,17 @@ struct RecorderImplementation : public Recorder {
     }
 
     #ifdef USE_OPENCV_VIDEO_RECORDING
-    bool allocateAndWriteVideo(const std::vector<FrameData> &frames) {
+    bool allocateAndWriteVideo(const std::vector<FrameData> &frames, bool cloneImage) {
         allocatedFrames.clear();
         for (auto f : frames) {
             std::shared_ptr<cv::Mat> allocatedFrameData;
             if (f.frameData != nullptr) {
                 allocatedFrameData = frameStore->next();
                 if (!allocatedFrameData) return false;
-                *(allocatedFrameData.get()) = f.frameData->clone();
+                if (cloneImage)
+                    *(allocatedFrameData.get()) = f.frameData->clone();
+                else
+                    *(allocatedFrameData.get()) = *f.frameData;
             }
             allocatedFrames.push_back(allocatedFrameData);
         }
@@ -241,11 +244,11 @@ struct RecorderImplementation : public Recorder {
     }
     #endif
 
-    bool addFrame(const FrameData &f) final {
+    bool addFrame(const FrameData &f, bool cloneImage) final {
         #ifdef USE_OPENCV_VIDEO_RECORDING
         if (!videoOutputPrefix.empty()) {
             const std::vector<FrameData> &frames{f};
-            if (!allocateAndWriteVideo(frames)) {
+            if (!allocateAndWriteVideo(frames, cloneImage)) {
                 frameDrop(f.t);
                 return false;
             }
@@ -265,10 +268,10 @@ struct RecorderImplementation : public Recorder {
         return true;
     }
 
-    bool addFrameGroup(double t, const std::vector<FrameData> &frames) final {
+    bool addFrameGroup(double t, const std::vector<FrameData> &frames, bool cloneImage) final {
         #ifdef USE_OPENCV_VIDEO_RECORDING
         if (!videoOutputPrefix.empty()) {
-            if (!allocateAndWriteVideo(frames)) {
+            if (!allocateAndWriteVideo(frames, cloneImage)) {
                 frameDrop(t);
                 return false;
             }
