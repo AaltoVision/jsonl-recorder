@@ -1,13 +1,12 @@
 #include <cstdio>
 #include "recorder.hpp"
 #include "video.hpp"
-#include "multithreading/allocator.hpp"
 #include "multithreading/future.hpp"
 
 #ifdef USE_OPENCV_VIDEO_RECORDING
+#include "multithreading/framebuffer.hpp"
 #include <opencv2/core.hpp>
 #endif
-
 
 #define log_warn std::printf
 
@@ -24,9 +23,12 @@ struct RecorderImplementation : public Recorder {
     std::map<int, std::unique_ptr<VideoWriter> > videoWriters;
     std::map<int, std::unique_ptr<Processor> > videoProcessors;
     float fps = 30;
-    std::unique_ptr<recorder::Allocator<cv::Mat>> frameStore;
     std::unique_ptr<Processor> jsonlProcessor;
-    std::vector<std::shared_ptr<cv::Mat>> allocatedFrames;
+
+    #ifdef USE_OPENCV_VIDEO_RECORDING
+    std::unique_ptr<recorder::FrameBuffer> frameStore;
+    std::vector<cv::Mat> allocatedFrames;
+    #endif
 
 
     // Preallocate.
@@ -125,17 +127,14 @@ struct RecorderImplementation : public Recorder {
         output.precision(10);
         jsonlProcessor = Processor::createThreadPool(1);
         #ifdef USE_OPENCV_VIDEO_RECORDING
-        constexpr std::size_t INIT_CAPACITY = 0;
         constexpr std::size_t CAPACITY_INCREASE = 4;
         // Shared between stereo, i.e. MAX_CAPACITY mono frames, or MAX_CAPACITY/2 stereo pairs can
         // be buffered in memory before frame skipping occurs if video encoding cannot keep up
         constexpr std::size_t MAX_CAPACITY = 20;
-        frameStore = std::make_unique<recorder::Allocator<cv::Mat>>(
-            []() { return std::make_unique<cv::Mat>(); },
-            INIT_CAPACITY, CAPACITY_INCREASE, MAX_CAPACITY
+        frameStore = std::make_unique<recorder::FrameBuffer>(
+            CAPACITY_INCREASE, MAX_CAPACITY
         );
         #endif
-
     }
 
     void closeOutputFile() final {
@@ -213,39 +212,55 @@ struct RecorderImplementation : public Recorder {
     }
 
     #ifdef USE_OPENCV_VIDEO_RECORDING
-    bool allocateAndWriteVideo(const std::vector<FrameData> &frames) {
-        allocatedFrames.clear();
-        for (auto f : frames) {
-            std::shared_ptr<cv::Mat> allocatedFrameData;
-            if (f.frameData != nullptr) {
-                allocatedFrameData = frameStore->next();
-                if (!allocatedFrameData) return false;
-                *(allocatedFrameData.get()) = f.frameData->clone();
+    bool getEmptyFrames(size_t number, double time, int width, int height, int type, std::vector<cv::Mat> &out) {
+        out.resize(number);
+        for (size_t i = 0; i < number; i++) {
+            auto frame = frameStore->next(height, width, type);
+            if (!frame) {
+                frameDrop(time);
+                out.clear(); // Free already allocated frames
+                return false;
             }
+            out[i] = *frame;
+        }
+        return true;
+    }
+
+    bool allocateAndWriteVideo(const std::vector<FrameData> &frames, bool cloneImage) {
+        allocatedFrames.clear();
+        // Allocate all frames, so if we don't have space for second frame of stereo, drop both
+        for (auto f : frames) {
+            if (f.frameData == nullptr) continue;
+            auto frameUniqPtr = frameStore->next(f.frameData->rows, f.frameData->cols, f.frameData->type());
+            if (!frameUniqPtr) return false;
+            cv::Mat allocatedFrameData = *frameUniqPtr.get();
+            if (cloneImage)
+                f.frameData->copyTo(allocatedFrameData);
+            else
+                allocatedFrameData = *f.frameData; // Doesn't copy data, cv::Mat as smart pointer
             allocatedFrames.push_back(allocatedFrameData);
         }
-
         for (size_t i = 0; i < frames.size(); i++) {
-            auto allocatedFrameData = allocatedFrames[i];
-            if (!allocatedFrameData) continue;
+            if (frames[i].frameData == nullptr) continue;
+            cv::Mat allocatedFrameData = allocatedFrames[i];
             int cameraInd = frames[i].cameraInd;
             if (!videoWriters.count(cameraInd)) {
-                videoWriters[cameraInd] = VideoWriter::build(videoOutputPrefix, cameraInd, fps, *allocatedFrameData.get());
+                videoWriters[cameraInd] = VideoWriter::build(videoOutputPrefix, cameraInd, fps, allocatedFrameData);
                 videoProcessors[cameraInd] = Processor::createThreadPool(1);
             }
             videoProcessors.at(cameraInd)->enqueue([this, cameraInd, allocatedFrameData]() {
-                videoWriters.at(cameraInd)->write(*allocatedFrameData.get());
+                videoWriters.at(cameraInd)->write(allocatedFrameData);
             });
         }
         return true;
     }
     #endif
 
-    bool addFrame(const FrameData &f) final {
+    bool addFrame(const FrameData &f, bool cloneImage) final {
         #ifdef USE_OPENCV_VIDEO_RECORDING
         if (!videoOutputPrefix.empty()) {
             const std::vector<FrameData> &frames{f};
-            if (!allocateAndWriteVideo(frames)) {
+            if (!allocateAndWriteVideo(frames, cloneImage)) {
                 frameDrop(f.t);
                 return false;
             }
@@ -265,10 +280,10 @@ struct RecorderImplementation : public Recorder {
         return true;
     }
 
-    bool addFrameGroup(double t, const std::vector<FrameData> &frames) final {
+    bool addFrameGroup(double t, const std::vector<FrameData> &frames, bool cloneImage) final {
         #ifdef USE_OPENCV_VIDEO_RECORDING
         if (!videoOutputPrefix.empty()) {
-            if (!allocateAndWriteVideo(frames)) {
+            if (!allocateAndWriteVideo(frames, cloneImage)) {
                 frameDrop(t);
                 return false;
             }

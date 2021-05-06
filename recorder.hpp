@@ -63,10 +63,20 @@ public:
         double longitude,
         double horizontalUncertainty,
         double altitude) = 0;
+
+    #ifdef USE_OPENCV_VIDEO_RECORDING
+    // Returns reused cv::Mat pointers to be used to store image data for  addFrame(Group) to avoid
+    // reallocating memory. Returns false, if not enough free frames are available and
+    // adds a dropped frame event to JSONL output file.
+    virtual bool getEmptyFrames(size_t number, double time, int width, int height, int type, std::vector<cv::Mat> &out) = 0;
+    #endif
+
     // If addFrame*** fails because of econding/writing can't keep up, call will return false
     // and frame is skipped. A dropped frame entry is added to the JSONL file.
-    virtual bool addFrame(const FrameData &f) = 0;
-    virtual bool addFrameGroup(double t, const std::vector<FrameData> &frames) = 0;
+    // When cloneImage is used, cv::Mat is cloned, otherwise existing data is used meaning you shouldn't
+    // modify or reuse it.
+    virtual bool addFrame(const FrameData &f, bool cloneImage = true) = 0;
+    virtual bool addFrameGroup(double t, const std::vector<FrameData> &frames, bool cloneImage = true) = 0;
 
     /**
      * Write arbitrary serialized JSON into the recording.
