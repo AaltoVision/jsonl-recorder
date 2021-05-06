@@ -66,9 +66,9 @@ public:
 
     #ifdef USE_OPENCV_VIDEO_RECORDING
     // Returns reused cv::Mat pointers to be used to store image data for  addFrame(Group) to avoid
-    // reallocating memory. Returns an empty vector, if not enough free frames are available and
+    // reallocating memory. Returns false, if not enough free frames are available and
     // adds a dropped frame event to JSONL output file.
-    virtual std::vector<cv::Mat> getEmptyFrames(size_t number, double time, int width, int height, int type) = 0;
+    virtual bool getEmptyFrames(size_t number, double time, int width, int height, int type, std::vector<cv::Mat> &out) = 0;
     #endif
 
     // If addFrame*** fails because of econding/writing can't keep up, call will return false

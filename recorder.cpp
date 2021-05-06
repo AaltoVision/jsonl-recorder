@@ -212,17 +212,18 @@ struct RecorderImplementation : public Recorder {
     }
 
     #ifdef USE_OPENCV_VIDEO_RECORDING
-    std::vector<cv::Mat> getEmptyFrames(size_t number, double time, int width, int height, int type) {
-        std::vector<cv::Mat> frames(number);
+    bool getEmptyFrames(size_t number, double time, int width, int height, int type, std::vector<cv::Mat> &out) {
+        out.resize(number);
         for (size_t i = 0; i < number; i++) {
             auto frame = frameStore->next(height, width, type);
             if (!frame) {
                 frameDrop(time);
-                return std::vector<cv::Mat>();
+                out.clear(); // Free already allocated frames
+                return false;
             }
-            frames[i] = *frame;
+            out[i] = *frame;
         }
-        return frames;
+        return true;
     }
 
     bool allocateAndWriteVideo(const std::vector<FrameData> &frames, bool cloneImage) {
