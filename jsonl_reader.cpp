@@ -57,7 +57,7 @@ void JsonlReader::read(std::string jsonlFilePath) {
             json jFrames = j["frames"];
             for (json::iterator jFrame = jFrames.begin(); jFrame != jFrames.end(); ++jFrame) {
                 FrameParameters frame = {
-                    .time = time
+                   /*  .time = */ time
                 };
                 if (!(*jFrame)["cameraParameters"].is_null()) {
 #define X(FIELD) \

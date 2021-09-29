@@ -155,11 +155,11 @@ struct RecorderImplementation : public Recorder {
 
     void addGyroscope(double t, double x, double y, double z) final {
         GyroscopeData d {
-          .t = t,
-          .x = x,
-          .y = y,
-          .z = z,
-          .temperature = -1.0,
+          /* .t = */ t,
+          /* .x = */ x,
+          /* .y = */ y,
+          /* .z = */ z,
+          /* .temperature = */ -1.0,
         };
         addGyroscope(d);
     }
@@ -178,11 +178,11 @@ struct RecorderImplementation : public Recorder {
 
     void addAccelerometer(double t, double x, double y, double z) final {
         AccelerometerData d {
-          .t = t,
-          .x = x,
-          .y = y,
-          .z = z,
-          .temperature = -1.0,
+          /* .t = */ t,
+          /* .x = */ x,
+          /* .y = */ y,
+          /* .z = */ z,
+          /* .temperature = */ -1.0
         };
         addAccelerometer(d);
     }
